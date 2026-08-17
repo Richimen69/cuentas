@@ -1,0 +1,6 @@
+{
+  "name": "Mi Libro de Cuentas",
+  "description": "Aplicación de control de gastos personales, presupuestos y pagos fijos con estética de libro contable artesanal.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

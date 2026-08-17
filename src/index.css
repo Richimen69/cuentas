@@ -1,0 +1,119 @@
+@import "tailwindcss";
+
+@layer base {
+  :root {
+    --font-serif: 'Fraunces', Georgia, serif;
+    --font-sans: 'Inter', system-ui, sans-serif;
+    --font-mono: 'IBM Plex Mono', monospace;
+  }
+}
+
+.font-serif {
+  font-family: 'Fraunces', 'Georgia', serif;
+}
+
+.font-sans {
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+}
+
+.font-mono {
+  font-family: 'IBM Plex Mono', 'Courier New', Courier, monospace;
+}
+
+/* High Density vertical text for spine tabs */
+.vertical-text {
+  writing-mode: vertical-rl;
+}
+
+/* Lined paper texture effect matching design */
+.ledger-paper {
+  background-color: #FAF6EC;
+  background-image: linear-gradient(#FAF6EC 31px, #E4DAC0 31px, #E4DAC0 32px);
+  background-size: 100% 32px;
+}
+
+.ledger-ruled-lines {
+  background-color: #FAF6EC;
+  background-image: linear-gradient(rgba(228, 218, 192, 0.6) 1px, transparent 1px);
+  background-size: 100% 28px;
+}
+
+/* Red margin vertical line found in accounting ledgers */
+.ledger-margin-line {
+  border-left: 2px solid rgba(163, 59, 46, 0.25);
+}
+
+.ledger-double-line {
+  border-bottom: 3px double #C4B99F;
+}
+
+/* Authentic Rubber Stamp Effect */
+.stamp-paid {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  text-transform: uppercase;
+  font-family: 'IBM Plex Mono', monospace;
+  font-weight: 800;
+  letter-spacing: 0.18em;
+  color: #A33B2E;
+  border: 3px solid #A33B2E;
+  padding: 0.25rem 0.75rem;
+  border-radius: 6px;
+  mask-image: radial-gradient(circle, rgba(0,0,0,1) 80%, rgba(0,0,0,0.7) 100%);
+  box-shadow: 0 0 0 2px rgba(163, 59, 46, 0.2), inset 0 0 0 1px rgba(163, 59, 46, 0.3);
+  text-shadow: 0 0 1px rgba(163, 59, 46, 0.4);
+  transform: rotate(-12deg);
+  opacity: 0.92;
+  user-select: none;
+  pointer-events: none;
+}
+
+.stamp-paid-sm {
+  font-size: 0.75rem;
+  padding: 0.15rem 0.5rem;
+  border-width: 2px;
+  border-radius: 4px;
+}
+
+.stamp-paid-lg {
+  font-size: 1.15rem;
+  padding: 0.4rem 1.1rem;
+  border-width: 3.5px;
+  border-radius: 8px;
+}
+
+/* Leather book cover shadows */
+.book-cover-shadow {
+  box-shadow: 
+    0 25px 50px -12px rgba(0, 0, 0, 0.75),
+    0 0 0 1px rgba(255, 255, 255, 0.05),
+    inset 0 1px 0 rgba(255, 255, 255, 0.1),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.4);
+}
+
+.page-depth-shadow {
+  box-shadow: 
+    inset 20px 0 35px -15px rgba(31, 42, 34, 0.18),
+    0 4px 20px rgba(0, 0, 0, 0.08);
+}
+
+/* Custom scrollbars that match the aged book paper aesthetic */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: #EFE9D9;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #C4B99F;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #A89B7E;
+}
+
