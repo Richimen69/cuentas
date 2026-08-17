@@ -1,5 +1,6 @@
 import React from 'react';
 import { MONTH_NAMES_ES, formatMXN } from '../utils/formatters';
+import { Database } from 'lucide-react';
 
 interface HeaderProps {
   selectedYear: number;
@@ -11,6 +12,7 @@ interface HeaderProps {
   totalIncome: number;
   totalExpense: number;
   pendingFixedAmount: number;
+  isDbConnected?: boolean;
   onResetData?: () => void;
 }
 
@@ -21,6 +23,7 @@ export const Header: React.FC<HeaderProps> = ({
   onNextMonth,
   onSelectCurrentMonth,
   netBalance,
+  isDbConnected = true,
 }) => {
   const isPositive = netBalance >= 0;
   const today = new Date();
@@ -29,9 +32,18 @@ export const Header: React.FC<HeaderProps> = ({
   return (
     <header className="flex flex-col sm:flex-row justify-between items-start sm:items-end border-b-2 border-[#1F2A22] pb-3 mb-6 gap-4 select-none">
       <div>
-        <h1 className="text-2xl sm:text-3xl font-serif text-[#1F2A22] font-bold tracking-tight">
-          Mi Libro de Cuentas
-        </h1>
+        <div className="flex items-center gap-2">
+          <h1 className="text-2xl sm:text-3xl font-serif text-[#1F2A22] font-bold tracking-tight">
+            Mi Libro de Cuentas
+          </h1>
+          <span
+            className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-mono font-bold bg-[#2E6F4E]/10 text-[#2E6F4E] border border-[#2E6F4E]/30"
+            title="Conectado a base de datos relacional PostgreSQL / Cloud SQL"
+          >
+            <Database className="w-3 h-3 text-[#2E6F4E]" />
+            PostgreSQL DB
+          </span>
+        </div>
         <p className="text-xs uppercase tracking-widest font-bold opacity-60 text-[#2C2C2C] mt-0.5">
           Registro Contable Personal • Ejercicio {selectedYear}
         </p>

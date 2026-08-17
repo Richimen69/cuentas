@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import {
   DEFAULT_CATEGORIES,
   DEFAULT_BUDGET_LIMITS,
@@ -24,6 +24,18 @@ import {
   formatMXN,
   getTodayDateString
 } from './utils/formatters';
+import {
+  fetchServerState,
+  apiAddMovement,
+  apiDeleteMovement,
+  apiAddFixedPayment,
+  apiDeleteFixedPayment,
+  apiToggleFixedPaymentStatus,
+  apiAddCategory,
+  apiUpdateBudgetLimit,
+  apiResetDatabase,
+  apiImportBackup,
+} from './services/apiService';
 import { Header } from './components/Header';
 import { NavigationTabs } from './components/NavigationTabs';
 import { LedgerPageWrapper } from './components/LedgerPageWrapper';
@@ -34,7 +46,7 @@ import { BudgetView } from './components/BudgetView';
 import { AddMovementModal } from './components/AddMovementModal';
 import { AddFixedPaymentModal } from './components/AddFixedPaymentModal';
 import { AddCategoryModal } from './components/AddCategoryModal';
-import { Plus, RotateCcw, Download, Upload, ShieldCheck, Sparkles } from 'lucide-react';
+import { Plus, RotateCcw, Download, Upload, Database, CheckCircle2 } from 'lucide-react';
 
 const STORAGE_KEYS = {
   MOVEMENTS: 'mi_libro_cuentas_movements_v1',
@@ -54,13 +66,14 @@ export default function App() {
   const [selectedYear, setSelectedYear] = useState<number>(currentRealYear);
   const [selectedMonth, setSelectedMonth] = useState<number>(currentRealMonth);
   const [activeTab, setActiveTab] = useState<ActiveTab>('dashboard');
+  const [isDbConnected, setIsDbConnected] = useState<boolean>(true);
 
   // Modals state
   const [isAddMovementOpen, setIsAddMovementOpen] = useState(false);
   const [isAddFixedPaymentOpen, setIsAddFixedPaymentOpen] = useState(false);
   const [isAddCategoryOpen, setIsAddCategoryOpen] = useState(false);
 
-  // Persistent States with LocalStorage
+  // Persistent States
   const [categories, setCategories] = useState<Category[]>(() => {
     try {
       const saved = localStorage.getItem(STORAGE_KEYS.CATEGORIES);
@@ -73,7 +86,12 @@ export default function App() {
   const [movements, setMovements] = useState<Movement[]>(() => {
     try {
       const saved = localStorage.getItem(STORAGE_KEYS.MOVEMENTS);
-      return saved ? JSON.parse(saved) : SAMPLE_MOVEMENTS;
+      const initialList: Movement[] = saved ? JSON.parse(saved) : SAMPLE_MOVEMENTS;
+      const uniqueMap = new Map<string, Movement>();
+      initialList.forEach((m) => {
+        if (m && m.id) uniqueMap.set(m.id, m);
+      });
+      return Array.from(uniqueMap.values());
     } catch {
       return SAMPLE_MOVEMENTS;
     }
@@ -108,7 +126,34 @@ export default function App() {
     }
   });
 
-  // Save to LocalStorage whenever states update
+  // Initial load from PostgreSQL / Cloud SQL backend
+  useEffect(() => {
+    async function loadDataFromDb() {
+      const serverState = await fetchServerState();
+      if (serverState) {
+        setIsDbConnected(true);
+        if (serverState.categories?.length > 0) setCategories(serverState.categories);
+        if (serverState.movements?.length > 0) {
+          // Deduplicate movements by ID to prevent duplicate key warnings
+          const uniqueMovementsMap = new Map<string, Movement>();
+          serverState.movements.forEach((m) => {
+            if (m && m.id) {
+              uniqueMovementsMap.set(m.id, m);
+            }
+          });
+          setMovements(Array.from(uniqueMovementsMap.values()));
+        }
+        if (serverState.budgetLimits?.length > 0) setBudgetLimits(serverState.budgetLimits);
+        if (serverState.fixedPayments?.length > 0) setFixedPayments(serverState.fixedPayments);
+        if (serverState.fixedPaymentMonthStatus) setFixedStatusByMonth(serverState.fixedPaymentMonthStatus);
+      } else {
+        setIsDbConnected(false);
+      }
+    }
+    loadDataFromDb();
+  }, []);
+
+  // Save to LocalStorage whenever states update (offline cache)
   useEffect(() => {
     localStorage.setItem(STORAGE_KEYS.CATEGORIES, JSON.stringify(categories));
   }, [categories]);
@@ -310,7 +355,7 @@ export default function App() {
   };
 
   // Add Movement Handler
-  const handleAddMovement = (data: {
+  const handleAddMovement = async (data: {
     type: TransactionType;
     amount: number;
     date: string;
@@ -324,29 +369,31 @@ export default function App() {
       createdAt: Date.now(),
     };
     setMovements((prev) => [newMovement, ...prev]);
+    await apiAddMovement(newMovement);
   };
 
   // Delete Movement Handler
-  const handleDeleteMovement = (id: string) => {
+  const handleDeleteMovement = async (id: string) => {
     setMovements((prev) => prev.filter((m) => m.id !== id));
+    await apiDeleteMovement(id);
   };
 
   // Toggle Fixed Payment Paid Status
-  const handleToggleFixedPaid = (fixedPaymentId: string, isPaid: boolean) => {
+  const handleToggleFixedPaid = async (fixedPaymentId: string, isPaid: boolean) => {
     const todayStr = getTodayDateString();
-    
+    let newMovementToPersist: Movement | null = null;
+    let movIdToDelete: string | undefined;
+
     setFixedStatusByMonth((prev) => {
       const monthRecords = { ...(prev[currentMonthKey] || {}) };
       const currentRecord = monthRecords[fixedPaymentId] || { isPaid: false };
 
       if (isPaid) {
-        // Look up fixed payment info
         const fp = fixedPayments.find((p) => p.id === fixedPaymentId);
         let createdMovId = currentRecord.movementId;
 
-        // Auto-register corresponding expense movement if not already created
         if (fp && !createdMovId) {
-          const newMovementId = `mov-fixed-${Date.now()}`;
+          const newMovementId = `mov-fixed-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
           const newMovement: Movement = {
             id: newMovementId,
             date: `${currentMonthKey}-${String(fp.dueDay).padStart(2, '0')}`,
@@ -358,7 +405,11 @@ export default function App() {
             createdAt: Date.now(),
             fixedPaymentId: fp.id,
           };
-          setMovements((mPrev) => [newMovement, ...mPrev]);
+          newMovementToPersist = newMovement;
+          setMovements((mPrev) => {
+            const filtered = mPrev.filter((m) => m.id !== newMovementId);
+            return [newMovement, ...filtered];
+          });
           createdMovId = newMovementId;
         }
 
@@ -368,8 +419,7 @@ export default function App() {
           movementId: createdMovId,
         };
       } else {
-        // If unmarking as paid, remove associated movement if exists
-        const movIdToDelete = currentRecord.movementId;
+        movIdToDelete = currentRecord.movementId;
         if (movIdToDelete) {
           setMovements((mPrev) => mPrev.filter((m) => m.id !== movIdToDelete));
         }
@@ -386,10 +436,26 @@ export default function App() {
         [currentMonthKey]: monthRecords,
       };
     });
+
+    if (newMovementToPersist) {
+      await apiAddMovement(newMovementToPersist);
+    }
+    if (movIdToDelete) {
+      await apiDeleteMovement(movIdToDelete);
+    }
+
+    await apiToggleFixedPaymentStatus({
+      year: selectedYear,
+      month: selectedMonth,
+      fixedPaymentId,
+      isPaid,
+      paidDate: isPaid ? todayStr : undefined,
+      movementId: newMovementToPersist ? (newMovementToPersist as Movement).id : undefined,
+    });
   };
 
   // Add Fixed Payment Handler
-  const handleAddFixedPayment = (data: {
+  const handleAddFixedPayment = async (data: {
     name: string;
     amount: number;
     dueDay: number;
@@ -401,15 +467,17 @@ export default function App() {
       ...data,
     };
     setFixedPayments((prev) => [...prev, newFP]);
+    await apiAddFixedPayment(newFP);
   };
 
   // Delete Fixed Payment Handler
-  const handleDeleteFixedPayment = (id: string) => {
+  const handleDeleteFixedPayment = async (id: string) => {
     setFixedPayments((prev) => prev.filter((p) => p.id !== id));
+    await apiDeleteFixedPayment(id);
   };
 
   // Update Category Budget Limit
-  const handleUpdateBudgetLimit = (categoryId: string, newLimit: number) => {
+  const handleUpdateBudgetLimit = async (categoryId: string, newLimit: number) => {
     setBudgetLimits((prev) => {
       const exists = prev.some((b) => b.categoryId === categoryId);
       if (exists) {
@@ -418,10 +486,11 @@ export default function App() {
         return [...prev, { categoryId, monthlyLimit: newLimit }];
       }
     });
+    await apiUpdateBudgetLimit(categoryId, newLimit);
   };
 
   // Add Custom Category Handler
-  const handleAddCategory = (data: {
+  const handleAddCategory = async (data: {
     name: string;
     type: TransactionType;
     iconName: string;
@@ -438,15 +507,17 @@ export default function App() {
       isCustom: true,
     };
     setCategories((prev) => [...prev, newCategory]);
+    await apiAddCategory(newCategory);
 
     if (data.type === 'expense' && data.initialLimit && data.initialLimit > 0) {
       setBudgetLimits((prev) => [...prev, { categoryId: newCatId, monthlyLimit: data.initialLimit! }]);
+      await apiUpdateBudgetLimit(newCatId, data.initialLimit);
     }
   };
 
   // Reset to initial sample data
-  const handleResetData = () => {
-    if (window.confirm('¿Deseas restaurar los datos de ejemplo del Libro de Cuentas? Se sobrescribirán los datos locales.')) {
+  const handleResetData = async () => {
+    if (window.confirm('¿Deseas restaurar los datos de ejemplo del Libro de Cuentas en la base de datos?')) {
       setCategories(DEFAULT_CATEGORIES);
       setBudgetLimits(DEFAULT_BUDGET_LIMITS);
       setFixedPayments(DEFAULT_FIXED_PAYMENTS);
@@ -454,6 +525,7 @@ export default function App() {
       setFixedStatusByMonth(INITIAL_FIXED_PAYMENTS_STATUS);
       setSelectedYear(currentRealYear);
       setSelectedMonth(currentRealMonth);
+      await apiResetDatabase();
     }
   };
 
@@ -482,7 +554,7 @@ export default function App() {
     const file = e.target.files?.[0];
     if (!file) return;
     const reader = new FileReader();
-    reader.onload = (event) => {
+    reader.onload = async (event) => {
       try {
         const parsed = JSON.parse(event.target?.result as string);
         if (parsed.categories && parsed.movements) {
@@ -491,7 +563,9 @@ export default function App() {
           if (parsed.budgetLimits) setBudgetLimits(parsed.budgetLimits);
           if (parsed.fixedPayments) setFixedPayments(parsed.fixedPayments);
           if (parsed.fixedStatusByMonth) setFixedStatusByMonth(parsed.fixedStatusByMonth);
-          alert('¡Respaldo importado con éxito!');
+          
+          await apiImportBackup(parsed);
+          alert('¡Respaldo importado y guardado en la base de datos con éxito!');
         } else {
           alert('El archivo no contiene un formato de respaldo válido.');
         }
@@ -544,6 +618,7 @@ export default function App() {
             totalIncome={summary.totalIncome}
             totalExpense={summary.totalExpense}
             pendingFixedAmount={summary.pendingFixedAmount}
+            isDbConnected={isDbConnected}
             onResetData={handleResetData}
           />
 
