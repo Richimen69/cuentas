@@ -69,9 +69,11 @@ export async function ensureDbInitialized() {
             is_paid BOOLEAN DEFAULT false NOT NULL,
             paid_date TEXT,
             movement_id TEXT,
+            override_amount DOUBLE PRECISION,
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL
           );
         `;
+        try { await sqlClient`ALTER TABLE fixed_payment_records ADD COLUMN override_amount DOUBLE PRECISION;`; } catch (e) {}
 
         await sqlClient`
           CREATE TABLE IF NOT EXISTS budget_limits (

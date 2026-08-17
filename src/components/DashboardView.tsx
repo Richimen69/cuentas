@@ -175,12 +175,19 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               <p className="text-[10px] font-mono text-[#8a8370] mt-1">DEBE TOTAL</p>
             </div>
 
-            <div className="bg-white/50 p-4 border border-[#E4DAC0] rounded shadow-xs">
+            <div className="bg-white/50 p-4 border border-[#E4DAC0] rounded shadow-xs relative">
               <p className="text-[10px] font-bold opacity-50 uppercase tracking-wider text-[#2C2C2C]">Por Pagar (Fijos)</p>
               <p className="text-xl font-mono text-[#B8863A] font-bold mt-1">
                 {formatMXN(summary.pendingFixedAmount)}
               </p>
-              <p className="text-[10px] font-mono text-[#8a8370] mt-1">{summary.pendingFixedCount} pendientes</p>
+              <div className="flex items-center justify-between mt-1">
+                <p className="text-[10px] font-mono text-[#8a8370]">{summary.pendingFixedCount} pendientes</p>
+                {summary.pendingFixedAmount - summary.netBalance > 0 && (
+                  <p className="text-[10px] font-mono text-[#A33B2E] bg-[#FDF7F7] px-1.5 py-0.5 rounded font-bold border border-[#A33B2E]/20" title="Dinero que te falta para cubrir los pagos pendientes con tu saldo actual">
+                    Faltan: {formatMXN(summary.pendingFixedAmount - summary.netBalance)}
+                  </p>
+                )}
+              </div>
             </div>
           </div>
 

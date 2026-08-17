@@ -25,6 +25,7 @@ interface FixedPaymentsViewProps {
   categories: Category[];
   monthStatus: Record<string, FixedPaymentMonthRecord>;
   onTogglePaid: (fixedPaymentId: string, isPaid: boolean) => void;
+  onUpdateOverride: (fixedPaymentId: string, overrideAmount: number | null) => void;
   onOpenAddModal: () => void;
   onDeleteFixedPayment: (id: string) => void;
   selectedYear: number;
@@ -36,6 +37,7 @@ export const FixedPaymentsView: React.FC<FixedPaymentsViewProps> = ({
   categories,
   monthStatus,
   onTogglePaid,
+  onUpdateOverride,
   onOpenAddModal,
   onDeleteFixedPayment,
   selectedYear,
@@ -329,9 +331,43 @@ export const FixedPaymentsView: React.FC<FixedPaymentsViewProps> = ({
 
                   {/* Amount */}
                   <div className="text-right">
-                    <div className="font-mono text-lg font-black text-[#1F2A22]">
-                      {formatMXN(item.amount)}
+                    <div className="font-mono text-lg font-black text-[#1F2A22] flex items-center justify-end gap-1">
+                      {formatMXN(statusRecord.overrideAmount !== undefined && statusRecord.overrideAmount !== null ? statusRecord.overrideAmount : item.amount)}
+                      {!isPaid && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const currentVal = statusRecord.overrideAmount !== undefined && statusRecord.overrideAmount !== null ? statusRecord.overrideAmount : item.amount;
+                            const newValStr = window.prompt(`Ingresa el nuevo monto para este mes de ${item.name}:`, String(currentVal));
+                            if (newValStr !== null) {
+                              const newVal = parseFloat(newValStr);
+                              if (!isNaN(newVal) && newVal >= 0) {
+                                onUpdateOverride(item.id, newVal);
+                              }
+                            }
+                          }}
+                          title="Modificar monto solo para este mes"
+                          className="text-[#8C826F] hover:text-[#1F2A22] p-1 rounded transition-colors cursor-pointer"
+                        >
+                          <Edit2 className="w-4 h-4" />
+                        </button>
+                      )}
                     </div>
+                    {statusRecord.overrideAmount !== undefined && statusRecord.overrideAmount !== null && (
+                      <div className="flex justify-end items-center gap-1">
+                        <span className="text-[10px] text-[#8C826F] line-through font-mono">Original: {formatMXN(item.amount)}</span>
+                        {!isPaid && (
+                          <button
+                            type="button"
+                            onClick={() => onUpdateOverride(item.id, null)}
+                            title="Restablecer monto original"
+                            className="text-[#8C826F] hover:text-[#A33B2E] p-0.5 cursor-pointer"
+                          >
+                            <Trash2 className="w-3 h-3" />
+                          </button>
+                        )}
+                      </div>
+                    )}
                   </div>
                 </div>
 

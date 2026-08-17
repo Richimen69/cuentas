@@ -105,6 +105,7 @@ async function startServer() {
           isPaid: rec.isPaid,
           paidDate: rec.paidDate,
           movementId: rec.movementId,
+          overrideAmount: rec.overrideAmount,
         };
       }
 
@@ -221,6 +222,44 @@ async function startServer() {
           isPaid,
           paidDate: paidDate || null,
           movementId: movementId || null,
+        });
+      }
+
+      res.json({ success: true });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // --- FIXED PAYMENT OVERRIDE AMOUNT ---
+  app.post("/api/fixed-payments/override", async (req, res) => {
+    const db = getDb();
+    if (!db) return res.status(500).json({ error: "Database not connected" });
+    try {
+      const { year, month, fixedPaymentId, overrideAmount } = req.body;
+      const recId = `${year}-${month}-${fixedPaymentId}`;
+      
+      const existing = await db
+        .select()
+        .from(fixedPaymentRecordsTable)
+        .where(eq(fixedPaymentRecordsTable.id, recId));
+
+      if (existing.length > 0) {
+        await db
+          .update(fixedPaymentRecordsTable)
+          .set({
+            overrideAmount: overrideAmount === null ? null : overrideAmount,
+            updatedAt: new Date(),
+          })
+          .where(eq(fixedPaymentRecordsTable.id, recId));
+      } else {
+        await db.insert(fixedPaymentRecordsTable).values({
+          id: recId,
+          year,
+          month,
+          fixedPaymentId,
+          isPaid: false,
+          overrideAmount: overrideAmount === null ? null : overrideAmount,
         });
       }
 

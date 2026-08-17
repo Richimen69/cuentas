@@ -41,6 +41,7 @@ export const fixedPaymentRecordsTable = pgTable("fixed_payment_records", {
   isPaid: boolean("is_paid").notNull().default(false),
   paidDate: text("paid_date"),
   movementId: text("movement_id"),
+  overrideAmount: doublePrecision("override_amount"),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
 

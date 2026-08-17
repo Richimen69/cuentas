@@ -31,6 +31,7 @@ import {
   apiAddFixedPayment,
   apiDeleteFixedPayment,
   apiToggleFixedPaymentStatus,
+  apiUpdateFixedPaymentOverride,
   apiAddCategory,
   apiUpdateBudgetLimit,
   apiResetDatabase,
@@ -225,13 +226,16 @@ export default function App() {
     let pendingCount = 0;
 
     fixedPayments.forEach((fp) => {
-      totalFixed += fp.amount;
-      const isPaid = currentMonthFixedStatus[fp.id]?.isPaid;
+      const record = currentMonthFixedStatus[fp.id] || {};
+      const isPaid = record.isPaid;
+      const effectiveAmount = record.overrideAmount !== undefined && record.overrideAmount !== null ? record.overrideAmount : fp.amount;
+      
+      totalFixed += effectiveAmount;
       if (isPaid) {
-        paidFixed += fp.amount;
+        paidFixed += effectiveAmount;
         paidCount++;
       } else {
-        pendingFixed += fp.amount;
+        pendingFixed += effectiveAmount;
         pendingCount++;
       }
     });
@@ -377,70 +381,63 @@ export default function App() {
     setMovements((prev) => prev.filter((m) => m.id !== id));
     await apiDeleteMovement(id);
   };
-
   // Toggle Fixed Payment Paid Status
   const handleToggleFixedPaid = async (fixedPaymentId: string, isPaid: boolean) => {
     const todayStr = getTodayDateString();
+    
+    // Evaluate the current state before updating
+    const monthRecords = fixedStatusByMonth[currentMonthKey] || {};
+    const currentRecord = monthRecords[fixedPaymentId] || { isPaid: false };
+    
     let newMovementToPersist: Movement | null = null;
     let movIdToDelete: string | undefined;
+    let createdMovId = currentRecord.movementId;
 
-    setFixedStatusByMonth((prev) => {
-      const monthRecords = { ...(prev[currentMonthKey] || {}) };
-      const currentRecord = monthRecords[fixedPaymentId] || { isPaid: false };
-
-      if (isPaid) {
-        const fp = fixedPayments.find((p) => p.id === fixedPaymentId);
-        let createdMovId = currentRecord.movementId;
-
-        if (fp && !createdMovId) {
-          const newMovementId = `mov-fixed-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
-          const newMovement: Movement = {
-            id: newMovementId,
-            date: `${currentMonthKey}-${String(fp.dueDay).padStart(2, '0')}`,
-            type: 'expense',
-            amount: fp.amount,
-            categoryId: fp.categoryId,
-            description: `Pago ${fp.name} (Fijo)`,
-            paymentMethod: 'transfer',
-            createdAt: Date.now(),
-            fixedPaymentId: fp.id,
-          };
-          newMovementToPersist = newMovement;
-          setMovements((mPrev) => {
-            const filtered = mPrev.filter((m) => m.id !== newMovementId);
-            return [newMovement, ...filtered];
-          });
-          createdMovId = newMovementId;
-        }
-
-        monthRecords[fixedPaymentId] = {
-          isPaid: true,
-          paidDate: todayStr,
-          movementId: createdMovId,
+    if (isPaid) {
+      const fp = fixedPayments.find((p) => p.id === fixedPaymentId);
+      if (fp && !createdMovId) {
+        const newMovementId = `mov-fixed-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
+        const effectiveAmount = currentRecord.overrideAmount !== undefined && currentRecord.overrideAmount !== null ? currentRecord.overrideAmount : fp.amount;
+        
+        newMovementToPersist = {
+          id: newMovementId,
+          date: `${currentMonthKey}-${String(fp.dueDay).padStart(2, '0')}`,
+          type: 'expense',
+          amount: effectiveAmount,
+          categoryId: fp.categoryId,
+          description: `Pago ${fp.name} (Fijo)`,
+          paymentMethod: 'transfer',
+          createdAt: Date.now(),
+          fixedPaymentId: fp.id,
         };
-      } else {
-        movIdToDelete = currentRecord.movementId;
-        if (movIdToDelete) {
-          setMovements((mPrev) => mPrev.filter((m) => m.id !== movIdToDelete));
-        }
-
-        monthRecords[fixedPaymentId] = {
-          isPaid: false,
-          paidDate: undefined,
-          movementId: undefined,
-        };
+        createdMovId = newMovementId;
       }
+    } else {
+      movIdToDelete = currentRecord.movementId;
+      createdMovId = undefined;
+    }
 
+    // Safely update state without side-effects inside the updater
+    setFixedStatusByMonth((prev) => {
+      const updatedMonthRecords = { ...(prev[currentMonthKey] || {}) };
+      updatedMonthRecords[fixedPaymentId] = {
+        isPaid,
+        paidDate: isPaid ? todayStr : undefined,
+        movementId: createdMovId,
+      };
       return {
         ...prev,
-        [currentMonthKey]: monthRecords,
+        [currentMonthKey]: updatedMonthRecords,
       };
     });
 
     if (newMovementToPersist) {
+      setMovements((prev) => [newMovementToPersist as Movement, ...prev.filter(m => m.id !== (newMovementToPersist as Movement).id)]);
       await apiAddMovement(newMovementToPersist);
     }
+
     if (movIdToDelete) {
+      setMovements((prev) => prev.filter((m) => m.id !== movIdToDelete));
       await apiDeleteMovement(movIdToDelete);
     }
 
@@ -450,7 +447,29 @@ export default function App() {
       fixedPaymentId,
       isPaid,
       paidDate: isPaid ? todayStr : undefined,
-      movementId: newMovementToPersist ? (newMovementToPersist as Movement).id : undefined,
+      movementId: createdMovId,
+    });
+  };
+
+  const handleUpdateFixedPaymentOverride = async (fixedPaymentId: string, overrideAmount: number | null) => {
+    setFixedStatusByMonth((prev) => {
+      const updatedMonthRecords = { ...(prev[currentMonthKey] || {}) };
+      const currentRecord = updatedMonthRecords[fixedPaymentId] || { isPaid: false };
+      updatedMonthRecords[fixedPaymentId] = {
+        ...currentRecord,
+        overrideAmount,
+      };
+      return {
+        ...prev,
+        [currentMonthKey]: updatedMonthRecords,
+      };
+    });
+
+    await apiUpdateFixedPaymentOverride({
+      year: selectedYear,
+      month: selectedMonth,
+      fixedPaymentId,
+      overrideAmount,
     });
   };
 
@@ -709,6 +728,7 @@ export default function App() {
                 categories={categories}
                 monthStatus={currentMonthFixedStatus}
                 onTogglePaid={handleToggleFixedPaid}
+                onUpdateOverride={handleUpdateFixedPaymentOverride}
                 onOpenAddModal={() => setIsAddFixedPaymentOpen(true)}
                 onDeleteFixedPayment={handleDeleteFixedPayment}
                 selectedYear={selectedYear}

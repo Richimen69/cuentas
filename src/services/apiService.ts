@@ -92,6 +92,25 @@ export async function apiToggleFixedPaymentStatus(payload: {
   }
 }
 
+export async function apiUpdateFixedPaymentOverride(payload: {
+  year: number;
+  month: number;
+  fixedPaymentId: string;
+  overrideAmount: number | null;
+}): Promise<boolean> {
+  try {
+    const res = await fetch('/api/fixed-payments/override', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    return res.ok;
+  } catch (err) {
+    console.error('apiUpdateFixedPaymentOverride error:', err);
+    return false;
+  }
+}
+
 export async function apiAddCategory(category: Category): Promise<boolean> {
   try {
     const res = await fetch('/api/categories', {

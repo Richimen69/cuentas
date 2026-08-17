@@ -37,6 +37,7 @@ export interface FixedPaymentMonthRecord {
   isPaid: boolean;
   paidDate?: string;
   movementId?: string;
+  overrideAmount?: number;
 }
 
 export interface BudgetLimit {
