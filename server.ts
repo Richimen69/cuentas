@@ -57,7 +57,7 @@ async function startServer() {
     }
   });
 
-  // Seed / Reset Initial Data
+  // Clear Database Data
   app.post("/api/db/seed", async (req, res) => {
     await ensureDbInitialized();
     const db = getDb();
@@ -72,72 +72,7 @@ async function startServer() {
       await db.delete(budgetLimitsTable);
       await db.delete(categoriesTable);
 
-      // Insert categories
-      for (const cat of DEFAULT_CATEGORIES) {
-        await db.insert(categoriesTable).values({
-          id: cat.id,
-          name: cat.name,
-          type: cat.type,
-          iconName: cat.iconName,
-          color: cat.color,
-          isCustom: false,
-        });
-      }
-
-      // Insert budget limits
-      for (const bl of DEFAULT_BUDGET_LIMITS) {
-        await db.insert(budgetLimitsTable).values({
-          categoryId: bl.categoryId,
-          monthlyLimit: bl.monthlyLimit,
-        });
-      }
-
-      // Insert fixed payments
-      for (const fp of DEFAULT_FIXED_PAYMENTS) {
-        await db.insert(fixedPaymentsTable).values({
-          id: fp.id,
-          name: fp.name,
-          amount: fp.amount,
-          dueDay: fp.dueDay,
-          categoryId: fp.categoryId,
-          notes: fp.notes,
-          reminderActive: true,
-        });
-      }
-
-      // Insert sample movements
-      for (const mov of SAMPLE_MOVEMENTS) {
-        await db.insert(movementsTable).values({
-          id: mov.id,
-          date: mov.date,
-          type: mov.type,
-          amount: mov.amount,
-          categoryId: mov.categoryId,
-          description: mov.description,
-          paymentMethod: mov.paymentMethod,
-          fixedPaymentId: mov.fixedPaymentId || null,
-        });
-      }
-
-      // Insert initial fixed payment records
-      for (const [yearMonthKey, records] of Object.entries(INITIAL_FIXED_PAYMENTS_STATUS)) {
-        const [y, m] = yearMonthKey.split("-").map(Number);
-        const monthIndex = m - 1;
-        for (const [fixedPaymentId, rec] of Object.entries(records)) {
-          const recId = `${y}-${monthIndex}-${fixedPaymentId}`;
-          await db.insert(fixedPaymentRecordsTable).values({
-            id: recId,
-            year: y,
-            month: monthIndex,
-            fixedPaymentId,
-            isPaid: rec.isPaid,
-            paidDate: rec.paidDate || null,
-            movementId: rec.movementId || null,
-          });
-        }
-      }
-
-      res.json({ success: true, message: "Database seeded successfully" });
+      res.json({ success: true, message: "Database cleared successfully" });
     } catch (err: any) {
       console.error("Seed error:", err);
       res.status(500).json({ error: err.message });
@@ -153,66 +88,6 @@ async function startServer() {
     }
     try {
       let categories = await db.select().from(categoriesTable);
-      
-      // Auto seed if empty
-      if (categories.length === 0) {
-        for (const cat of DEFAULT_CATEGORIES) {
-          await db.insert(categoriesTable).values({
-            id: cat.id,
-            name: cat.name,
-            type: cat.type,
-            iconName: cat.iconName,
-            color: cat.color,
-            isCustom: false,
-          });
-        }
-        for (const bl of DEFAULT_BUDGET_LIMITS) {
-          await db.insert(budgetLimitsTable).values({
-            categoryId: bl.categoryId,
-            monthlyLimit: bl.monthlyLimit,
-          });
-        }
-        for (const fp of DEFAULT_FIXED_PAYMENTS) {
-          await db.insert(fixedPaymentsTable).values({
-            id: fp.id,
-            name: fp.name,
-            amount: fp.amount,
-            dueDay: fp.dueDay,
-            categoryId: fp.categoryId,
-            notes: fp.notes,
-            reminderActive: true,
-          });
-        }
-        for (const mov of SAMPLE_MOVEMENTS) {
-          await db.insert(movementsTable).values({
-            id: mov.id,
-            date: mov.date,
-            type: mov.type,
-            amount: mov.amount,
-            categoryId: mov.categoryId,
-            description: mov.description,
-            paymentMethod: mov.paymentMethod,
-            fixedPaymentId: mov.fixedPaymentId || null,
-          });
-        }
-        for (const [yearMonthKey, records] of Object.entries(INITIAL_FIXED_PAYMENTS_STATUS)) {
-          const [y, m] = yearMonthKey.split("-").map(Number);
-          const monthIndex = m - 1;
-          for (const [fixedPaymentId, rec] of Object.entries(records)) {
-            const recId = `${y}-${monthIndex}-${fixedPaymentId}`;
-            await db.insert(fixedPaymentRecordsTable).values({
-              id: recId,
-              year: y,
-              month: monthIndex,
-              fixedPaymentId,
-              isPaid: rec.isPaid,
-              paidDate: rec.paidDate || null,
-              movementId: rec.movementId || null,
-            });
-          }
-        }
-        categories = await db.select().from(categoriesTable);
-      }
 
       const movements = await db.select().from(movementsTable);
       const fixedPayments = await db.select().from(fixedPaymentsTable);

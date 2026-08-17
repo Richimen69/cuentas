@@ -515,14 +515,14 @@ export default function App() {
     }
   };
 
-  // Reset to initial sample data
-  const handleResetData = async () => {
-    if (window.confirm('¿Deseas restaurar los datos de ejemplo del Libro de Cuentas en la base de datos?')) {
-      setCategories(DEFAULT_CATEGORIES);
-      setBudgetLimits(DEFAULT_BUDGET_LIMITS);
-      setFixedPayments(DEFAULT_FIXED_PAYMENTS);
-      setMovements(SAMPLE_MOVEMENTS);
-      setFixedStatusByMonth(INITIAL_FIXED_PAYMENTS_STATUS);
+  // Clear all data
+  const handleClearData = async () => {
+    if (window.confirm('¿Estás seguro de que deseas vaciar completamente la base de datos? Esto eliminará todos los registros y categorías.')) {
+      setCategories([]);
+      setBudgetLimits([]);
+      setFixedPayments([]);
+      setMovements([]);
+      setFixedStatusByMonth({});
       setSelectedYear(currentRealYear);
       setSelectedMonth(currentRealMonth);
       await apiResetDatabase();
@@ -619,7 +619,7 @@ export default function App() {
             totalExpense={summary.totalExpense}
             pendingFixedAmount={summary.pendingFixedAmount}
             isDbConnected={isDbConnected}
-            onResetData={handleResetData}
+            onResetData={handleClearData}
           />
 
           {/* Parchment Paper Inner Ledger Container */}
@@ -640,12 +640,12 @@ export default function App() {
             actions={
               <div className="flex items-center gap-2">
                 <button
-                  onClick={handleResetData}
-                  title="Cargar datos de ejemplo"
+                  onClick={handleClearData}
+                  title="Vaciar base de datos"
                   className="px-2.5 py-1 bg-white/60 hover:bg-white border border-[#C4B99F] text-[#595246] text-xs font-serif rounded flex items-center gap-1 transition-colors cursor-pointer shadow-2xs"
                 >
                   <RotateCcw className="w-3.5 h-3.5" />
-                  <span className="hidden sm:inline">Ejemplo</span>
+                  <span className="hidden sm:inline">Vaciar DB</span>
                 </button>
 
                 <button
