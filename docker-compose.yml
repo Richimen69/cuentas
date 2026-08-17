@@ -1,0 +1,13 @@
+version: '3.8'
+
+services:
+  cuentas-app:
+    build: .
+    container_name: app-cuentas
+    ports:
+      # Mapea el puerto 5000 de tu PC al 3000 del contenedor
+      # (Cambia el 5000 si también lo tienes ocupado, por ej. a 8080:3000)
+      - "5000:3000"
+    env_file:
+      - .env
+    restart: unless-stopped
